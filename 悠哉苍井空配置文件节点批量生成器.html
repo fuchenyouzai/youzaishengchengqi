@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>VLESS 批量节点生成器（直接 pyip）</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+body{font-family:monospace,Arial,sans-serif;background:#f5f7fa;color:#0b2545;padding:18px;}
+h1{color:#0a84ff;margin-bottom:12px;}
+textarea,input{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:1px solid #ccc;font-family:monospace;}
+button{padding:8px 12px;border-radius:6px;border:0;background:#0a84ff;color:white;cursor:pointer;margin:4px;}
+button.secondary{background:#64748b;}
+button.warn{background:#ef4444;}
+pre{background:#f8fafc;padding:12px;border-radius:6px;border:1px solid #e6eef2;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow:auto;}
+label{font-weight:bold;margin-top:8px;display:block;}
+</style>
+</head>
+<body>
+
+<h1>悠哉苍井空-VLESS节点-配置文件-批量生成器---悠哉TG有问题联系我的TG：@fuchenyouzaibot        ----------（苍井空老师爱你呦）-------</h1>
+
+<label>地区节点为前缀（示例，美国节点，香港节点，哪个地区就写哪个地区名字然后加上节点二字，自动生成节点名称并自动排序）</label>
+<input id="regionName" placeholder="地区节点" value="地区节点">
+
+<label>批量输入 server 就是优选ip或域名（每行一个，唯一使用）</label>
+<textarea id="servers" placeholder="104.17.72.164\n104.17.72.165"></textarea>
+
+<label>批量输入 pyip 值（每行一个，可循环使用，支持 IP:端口 或 域名，不带 http/https）</label>
+<textarea id="pyips" placeholder="66.63.166.25:443\nyouzai.com"></textarea>
+
+<label>输入你的UUID</label>
+<input id="uuid" placeholder="uuid值" value="uuid示例-1111-2222-3333">
+
+<label>输入你的域名（Host）</label>
+<input id="servername" placeholder="域名值" value="example.com">
+
+<label>输入节点端口:默认443就可以了（单端口或多行循环使用）</label>
+<textarea id="ports" placeholder="443">443</textarea>
+
+<div>
+<button id="generateBtn">生成 悠哉苍井空配置文件YAML</button>
+<button id="downloadBtn" class="secondary">下载悠哉苍井空配置文件YAML</button>
+<button id="copyBtn" class="secondary">复制到剪贴板</button>
+<button id="clearBtn" class="warn">清空输入</button>
+</div>
+
+<label>生成预览</label>
+<pre id="output"></pre>
+
+<script>
+function trimLines(s){return s? s.split(/\r?\n/).map(x=>x.trim()).filter(Boolean):[];}
+
+function normalizePyip(raw){
+  if(!raw) return '';
+  raw = raw.trim();
+  if(raw.toLowerCase().startsWith("/pyip=")) raw = raw.slice(6);
+  raw = raw.replace(/^https?:\/\//i,'');
+  return raw;
+}
+
+function makePathFromPyip(val){
+  return '"/pyip=' + normalizePyip(val) + '"';
+}
+
+document.getElementById('generateBtn').addEventListener('click',()=>{
+  const region = (document.getElementById('regionName').value||'').trim()||'节点';
+  let servers = trimLines(document.getElementById('servers').value);
+  let pyips = trimLines(document.getElementById('pyips').value).map(normalizePyip);
+  const uuid = (document.getElementById('uuid').value||'').trim();
+  const servername = (document.getElementById('servername').value||'').trim();
+  let ports = trimLines(document.getElementById('ports').value);
+
+  if(servers.length===0){alert('请至少输入一个 server');return;}
+  if(pyips.length===0) pyips=['127.0.0.1'];
+  if(ports.length===0) ports=['443'];
+
+  const seen=new Set(); const uniqueServers=[]; for(const s of servers){if(!seen.has(s)){seen.add(s);uniqueServers.push(s);}} servers=uniqueServers;
+  servers.sort((a,b)=>{
+    const da=(a.match(/\d+/g)||[]).join('')||''; const db=(b.match(/\d+/g)||[]).join('')||'';
+    const na=da?parseInt(da,10):Number.MAX_SAFE_INTEGER;
+    const nb=db?parseInt(db,10):Number.MAX_SAFE_INTEGER;
+    if(na!==nb) return na-nb; return a.localeCompare(b);
+  });
+
+  let out=`# 总节点数: ${servers.length}\n\n`;
+  for(let i=0;i<servers.length;i++){
+    const server=servers[i];
+    const name=region+(i+1);
+    const port=ports[i%ports.length]||'443';
+    const pyipVal=pyips[i%pyips.length];
+    const path=makePathFromPyip(pyipVal);
+    out+=`- name: ${name}\n`;
+    out+=`  type: vless\n`;
+    out+=`  server: ${server}\n`;
+    out+=`  port: ${port}\n`;
+    out+=`  uuid: ${uuid}\n`;
+    out+=`  tcp: true\n`;
+    out+=`  udp: true\n`;
+    out+=`  tls: true\n`;
+    out+=`  network: ws\n`;
+    out+=`  servername: ${servername}\n`;
+    out+=`  ws-opts:\n`;
+    out+=`    path: ${path}\n`;
+    out+=`    headers:\n`;
+    out+=`      Host: ${servername}\n\n`;
+  }
+  document.getElementById('output').textContent=out;
+
+  // 生成成功提示
+  alert(`生成完成，总节点数 ${servers.length}\n悠哉，恭喜你即将和苍井空起飞 🎉`);
+});
+
+document.getElementById('downloadBtn').addEventListener('click',()=>{
+  const content=document.getElementById('output').textContent;
+  if(!content){alert('请先生成 YAML');return;}
+  const blob=new Blob([content],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='tg@fuchenyouzaibot.yaml';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('copyBtn').addEventListener('click',async()=>{
+  const content=document.getElementById('output').textContent;
+  if(!content){alert('请先生成 YAML');return;}
+  try{await navigator.clipboard.writeText(content);alert('已复制到剪贴板');}catch(e){alert('复制失败，请手动复制');}
+});
+
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  if(!confirm('清空所有输入和输出？')) return;
+  document.getElementById('regionName').value='地区节点';
+  document.getElementById('servers').value='';
+  document.getElementById('pyips').value='';
+  document.getElementById('uuid').value='';
+  document.getElementById('servername').value='';
+  document.getElementById('ports').value='443';
+  document.getElementById('output').textContent='';
+});
+</script>
+
+</body>
+</html>
